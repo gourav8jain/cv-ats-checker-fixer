@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#F6F3EC" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#101317" media="(prefers-color-scheme: dark)" />
+  <title>ResumeRx — Free ATS Resume Checker & Fixer</title>
+  <meta name="description" content="Check if your resume passes Applicant Tracking Systems. Free ATS score across 7 categories, job keyword match, and one-tap fixes. Your file never leaves your device." />
+  <meta property="og:title" content="ResumeRx — Free ATS Resume Checker & Fixer" />
+  <meta property="og:description" content="Free ATS score, keyword match and one-tap fixes. Processed on your device." />
+  <meta property="og:type" content="website" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <a href="#/" class="brand" aria-label="ResumeRx home">
+      <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><rect x="5" y="3" width="22" height="26" rx="4" fill="currentColor"/><path d="M10 11h12M10 16h8M10 21h6" stroke="var(--paper)" stroke-width="2.4" stroke-linecap="round"/><circle cx="23.5" cy="23.5" r="6" fill="var(--pass)" stroke="var(--paper)" stroke-width="2"/><path d="M20.8 23.6l1.8 1.8 3.4-3.6" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Resume<b>Rx</b></span>
+    </a>
+    <nav class="nav">
+      <a href="#/pricing">Pricing</a>
+      <a href="#/account" id="nav-account">Account</a>
+    </nav>
+  </header>
+  <main id="main" tabindex="-1"></main>
+  <footer class="footer">
+    <div class="footer-inner">
+      <span>© <span id="yr"></span> ResumeRx</span>
+      <a href="#/privacy">Privacy</a>
+      <a href="#/terms">Terms</a>
+      <a href="#/pricing">Pricing</a>
+    </div>
+  </footer>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

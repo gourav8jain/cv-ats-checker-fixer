@@ -1,0 +1,9 @@
+{
+  "appId": "com.resumerx.app",
+  "appName": "ResumeRx",
+  "webDir": "dist",
+  "backgroundColor": "#F6F3EC",
+  "android": { "allowMixedContent": false },
+  "ios": { "contentInset": "always", "scheme": "ResumeRx" },
+  "plugins": {}
+}

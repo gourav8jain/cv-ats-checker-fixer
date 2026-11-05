@@ -1,0 +1,42 @@
+name: Deploy web to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Test engine & payments worker
+        run: npm test
+      - name: Build
+        run: npm run build
+        env:
+          # Set these in Settings → Secrets and variables → Actions → Variables.
+          # Leave VITE_API_BASE empty to run in demo mode (simulated checkout).
+          VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+          VITE_PUBLIC_KEY_JWK: ${{ vars.VITE_PUBLIC_KEY_JWK }}
+          VITE_PAYMENT_PROVIDER: ${{ vars.VITE_PAYMENT_PROVIDER }}
+          VITE_SUPPORT_EMAIL: ${{ vars.VITE_SUPPORT_EMAIL }}
+          VITE_WEB_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+      - name: Publish to gh-pages branch
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: dist
+          clean: true

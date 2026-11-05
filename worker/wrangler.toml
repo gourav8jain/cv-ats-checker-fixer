@@ -1,0 +1,16 @@
+name = "resumerx-payments"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+# Comma-separated origins allowed to call the API and to be used as Stripe return URLs.
+# capacitor://localhost = iOS app, https://localhost = Android app.
+ALLOWED_ORIGINS = "https://gourav8jain.github.io,capacitor://localhost,https://localhost,http://localhost:5173,http://localhost:4173"
+AI_MODEL = "claude-sonnet-5-5"
+
+# Secrets (set with `npx wrangler secret put <NAME>`):
+#   SIGNING_KEY_JWK      private key from scripts/genkeys.mjs   (required)
+#   STRIPE_SECRET_KEY    sk_live_... or sk_test_...             (for card payments)
+#   RAZORPAY_KEY_ID      rzp_live_...                          (for UPI / India)
+#   RAZORPAY_KEY_SECRET
+#   ANTHROPIC_API_KEY    for AI rewrites (Premium & Ultimate)
