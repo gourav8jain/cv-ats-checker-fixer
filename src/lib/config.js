@@ -11,7 +11,7 @@ export const CONFIG = {
   // Public half of the ES256 key the worker signs licenses with.
   publicKeyJwk: parseJson(env.VITE_PUBLIC_KEY_JWK),
   // 'stripe' (cards, Apple Pay, Google Pay worldwide), 'razorpay' (UPI/cards in India) or 'both'
-  provider: env.VITE_PAYMENT_PROVIDER || 'stripe',
+  provider: env.VITE_PAYMENT_PROVIDER || (env.VITE_API_BASE ? 'stripe' : 'both'),
   webUrl: env.VITE_WEB_URL || 'https://gourav8jain.github.io/cv-ats-checker-fixer/',
   appScheme: 'resumerx',
   supportEmail: env.VITE_SUPPORT_EMAIL || 'support@example.com',

@@ -6,6 +6,7 @@ import { toDocxBlob, toPdfBlob, toTxtBlob, textToBlob } from './engine/exporter.
 import { SAMPLE_RESUME, SAMPLE_JD } from './engine/sample.js';
 import { PLANS, PLAN_BY_ID, FEATURES, planHas, cheapestPlanFor } from '../shared/plans.js';
 import { CONFIG } from './lib/config.js';
+import { COUNTRIES, CURRENCIES, DEFAULT_COUNTRY, COUNTRY_BY_CODE, currencyForCountry, priceFor, formatPrice } from '../shared/pricing.js';
 import { getLicense, setLicense, clearLicense, makeDemoToken, activePlanId } from './lib/license.js';
 import { startCheckout, completeStripe, refreshLicense, openBillingPortal, aiRewrite, aiAvailable } from './lib/payments.js';
 import { isNative, platform, saveFile, onDeepLink, closeExternal } from './lib/platform.js';
@@ -26,7 +27,49 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
   del(k) { try { localStorage.removeItem(k); } catch { /* ignore */ } },
 };
-const money = (p) => `$${p.usd}`;
+/* ---------------- region & pricing ---------------- */
+const region = (() => {
+  const saved = store.get('rrx_region');
+  if (saved && COUNTRY_BY_CODE[saved.country] && CURRENCIES[saved.currency]) return saved;
+  return { country: DEFAULT_COUNTRY, currency: currencyForCountry(DEFAULT_COUNTRY) };
+})();
+const money = (p) => { const pr = priceFor(p.id, region.currency); return pr ? formatPrice(pr.amount, region.currency) : ''; };
+const fromPrice = () => money(PLAN_BY_ID.starter);
+
+function regionPicker(id = 'rp') {
+  return `<div class="region" role="group" aria-label="Country and currency">
+    <label class="field" for="${id}-country">Country</label>
+    <select id="${id}-country" data-region="country">${COUNTRIES.map((c) => `<option value="${c.code}" ${c.code === region.country ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
+    <label class="field" for="${id}-currency">Currency</label>
+    <select id="${id}-currency" data-region="currency">${Object.keys(CURRENCIES).map((k) => `<option value="${k}" ${k === region.currency ? 'selected' : ''}>${k} (${esc(CURRENCIES[k].symbol.trim())})</option>`).join('')}</select>
+  </div>`;
+}
+function bindRegionPicker(onChange) {
+  $$('[data-region]').forEach((sel) => sel.addEventListener('change', () => {
+    if (sel.dataset.region === 'country') {
+      region.country = sel.value;
+      region.currency = currencyForCountry(sel.value);
+    } else {
+      region.currency = sel.value;
+    }
+    store.set('rrx_region', region);
+    onChange();
+  }));
+}
+
+function payButtons(p) {
+  const rzp = CONFIG.provider === 'razorpay' || CONFIG.provider === 'both';
+  const stp = CONFIG.provider === 'stripe' || CONFIG.provider === 'both';
+  const btns = [];
+  if (region.currency === 'INR' && rzp) {
+    btns.push(['razorpay', 'Pay with UPI / Card']);
+    if (stp) btns.push(['stripe', 'Pay by international card']);
+  } else {
+    if (stp) btns.push(['stripe', `Get ${p.name}`]);
+    else if (rzp) btns.push(['razorpay', `Get ${p.name}`]);
+  }
+  return btns.map(([prov, label], i) => `<button class="btn ${i === 0 ? (p.popular ? 'pass' : '') : 'ghost'} block" data-buy="${p.id}" data-prov="${prov}">${esc(label)}</button>`).join('');
+}
 
 /* ---------------- state ---------------- */
 const FIX_GROUPS = ['format', 'contact', 'headings', 'dates', 'bullets', 'pronouns', 'cliches', 'tense', 'repetition', 'quantify', 'keywords', 'summary'];
@@ -140,7 +183,8 @@ function viewHome() {
   </section>
 
   <section class="section">
-    <div class="row"><h2 style="margin:0">Fix plans from $9</h2><span class="spacer"></span><a class="btn ghost sm" href="#/pricing">Compare plans</a></div>
+    <div class="row"><h2 style="margin:0">Fix plans from ${fromPrice()}</h2><span class="spacer"></span><a class="btn ghost sm" href="#/pricing">Compare plans</a></div>
+    <div style="margin-top:12px">${regionPicker('home')}</div>
     <p class="muted" style="margin-top:8px">Checking is always free. Pay only for the fixes you need — cancel anytime.</p>
     <div class="plans">${PLANS.filter((p) => p.usd).map((p) => `<a class="card plan ${p.popular ? 'popular' : ''}" href="#/pricing" style="text-decoration:none">${p.popular ? '<span class="badge">Most popular</span>' : ''}<h3>${p.name}</h3><div class="price">${money(p)}<small> /month</small></div><p class="muted small" style="margin:0">${p.tagline}</p></a>`).join('')}</div>
   </section>
@@ -169,6 +213,7 @@ function viewHome() {
     if (t.length < 200) return toast('Paste your full resume text (at least a few lines).');
     runAnalysis(parseText(t), 'pasted-resume');
   });
+  bindRegionPicker(() => { const y = window.scrollY; viewHome(); window.scrollTo(0, y); });
   $('#sample').addEventListener('click', () => {
     $('#jd').value = SAMPLE_JD;
     runAnalysis(parseText(SAMPLE_RESUME), 'sample-resume');
@@ -339,7 +384,7 @@ function viewFix() {
   main.innerHTML = `
   <section class="section" style="padding-top:24px">
     <div class="row"><div><div class="eyebrow">Resume fixer</div><h2 style="margin:0">Fix & export</h2></div><span class="spacer"></span>
-    ${free ? `<a class="btn pass sm" href="#/pricing">Unlock fixes from $9</a>` : `<span class="grade g-pass">${esc(PLAN_BY_ID[state.plan].name)}</span>`}</div>
+    ${free ? `<a class="btn pass sm" href="#/pricing">Unlock fixes from ${fromPrice()}</a>` : `<span class="grade g-pass">${esc(PLAN_BY_ID[state.plan].name)}</span>`}</div>
   </section>
   <div class="tabs" role="tablist" id="fix-tabs">
     <button role="tab" data-tab="resume" aria-selected="${state.tab === 'resume'}">Resume</button>
@@ -398,7 +443,7 @@ function viewFix() {
           <button class="btn ghost" data-export="pdf">PDF</button>
           <button class="btn ghost" data-export="txt">TXT</button>
         </div>
-        <p class="small muted" style="margin:10px 0 0">${unlocked('format') ? 'Single-column, standard fonts, no tables or graphics — exactly what ATS parse best.' : '🔒 Export is included in every paid plan, from $9.'}</p>
+        <p class="small muted" style="margin:10px 0 0">${unlocked('format') ? 'Single-column, standard fonts, no tables or graphics — exactly what ATS parse best.' : `🔒 Export is included in every paid plan, from ${fromPrice()}.`}</p>
       </div>
     </div>
   </div>`;
@@ -407,7 +452,7 @@ function viewFix() {
     const doc = buildDoc();
     const editable = !free;
     const prev = $('#preview');
-    prev.innerHTML = previewHtml(doc, editable) + (free ? `<div class="paywall-veil"><b style="font-size:1.1rem">${doc.changes.length} fixes ready to apply</b><span class="muted small">Unlock automatic fixes and ATS-safe export.</span><a class="btn pass" href="#/pricing">See plans from $9</a></div>` : '');
+    prev.innerHTML = previewHtml(doc, editable) + (free ? `<div class="paywall-veil"><b style="font-size:1.1rem">${doc.changes.length} fixes ready to apply</b><span class="muted small">Unlock automatic fixes and ATS-safe export.</span><a class="btn pass" href="#/pricing">See plans from ${fromPrice()}</a></div>` : '');
     if (free) {
       // Blur everything after the first section so the value is visible but not usable.
       const nodes = [...prev.children].filter((n) => !n.classList.contains('paywall-veil'));
@@ -429,7 +474,7 @@ function viewFix() {
   update();
   const cta = document.createElement('div');
   cta.className = 'sticky-cta';
-  cta.innerHTML = free ? '<a class="btn pass" href="#/pricing">Unlock fixes from $9</a>' : (unlocked('format') ? '<button class="btn pass" data-export="docx">Download DOCX</button><button class="btn ghost" data-export="pdf" style="flex:0 0 auto">PDF</button>' : '');
+  cta.innerHTML = free ? `<a class="btn pass" href="#/pricing">Unlock fixes from ${fromPrice()}</a>` : (unlocked('format') ? '<button class="btn pass" data-export="docx">Download DOCX</button><button class="btn ghost" data-export="pdf" style="flex:0 0 auto">PDF</button>' : '');
   if (cta.innerHTML) document.body.appendChild(cta);
 
   $$('[data-feat]').forEach((cb) => cb.addEventListener('change', () => { cb.checked ? state.selected.add(cb.dataset.feat) : state.selected.delete(cb.dataset.feat); update(); }));
@@ -510,13 +555,13 @@ function renderLinkedInTab(body) {
 
 /* ---------- Pricing ---------- */
 function viewPricing() {
-  const both = CONFIG.provider === 'both';
   const ios = platform() === 'ios';
   main.innerHTML = `
   <section class="section" style="padding-top:28px">
     <div class="eyebrow">Pricing</div>
     <h2>Pay for the fixes you need</h2>
     <p class="muted">ATS checks are always free. Every plan is billed monthly and can be cancelled anytime.</p>
+    <div class="card" style="margin-bottom:16px;padding:16px">${regionPicker('pricing')}<p class="small muted" style="margin:10px 0 0">Prices for ${esc(COUNTRY_BY_CODE[region.country].name)}, shown in ${region.currency}. ${region.currency === 'INR' ? 'UPI, cards, net banking and wallets accepted.' : 'Cards, Apple Pay and Google Pay accepted.'}</p></div>
     ${CONFIG.demoMode ? `<div class="banner warn" style="margin-bottom:16px"><b>Demo mode.</b> The payments server isn't connected yet, so checkout is simulated and no card is charged.</div>` : ''}
     ${ios && !CONFIG.demoMode ? `<div class="banner" style="margin-bottom:16px">You'll complete payment securely on our website, then return to the app automatically.</div>` : ''}
     <div style="max-width:360px;margin-bottom:20px"><label class="field" for="buyer-email">Email for your receipt (optional)</label><input type="email" id="buyer-email" placeholder="you@example.com" autocomplete="email" /></div>
@@ -527,8 +572,7 @@ function viewPricing() {
         <div class="price">${money(p)}<small> /month</small></div>
         <ul>${p.highlights.map((h) => `<li>${esc(h)}</li>`).join('')}</ul>
         ${state.plan === p.id ? '<button class="btn ghost block" disabled>Current plan</button>' : `
-          <button class="btn ${p.popular ? 'pass' : ''} block" data-buy="${p.id}" data-prov="${both ? 'stripe' : CONFIG.provider}">${both ? 'Pay by card' : `Get ${p.name}`}</button>
-          ${both ? `<button class="btn ghost block" data-buy="${p.id}" data-prov="razorpay">UPI / India · ₹${p.inr.toLocaleString('en-IN')}</button>` : ''}`}
+          ${payButtons(p)}`}
       </div>`).join('')}
     </div>
   </section>
@@ -549,12 +593,13 @@ function viewPricing() {
     const label = b.textContent;
     b.disabled = true; b.textContent = 'Opening checkout…';
     try {
-      const lic = await startCheckout(b.dataset.buy, b.dataset.prov, $('#buyer-email').value.trim());
+      const lic = await startCheckout(b.dataset.buy, b.dataset.prov, $('#buyer-email').value.trim(), region.currency, region.country);
       if (lic) { await refreshPlan(); toast(`${PLAN_BY_ID[lic.plan].name} unlocked!`); location.hash = state.analysis ? '#/fix' : '#/account'; }
     } catch (e) { toast(e.message); }
     b.disabled = false; b.textContent = label;
   }));
   $('#lic-go').addEventListener('click', activateFromInput);
+  bindRegionPicker(() => { const y = window.scrollY; viewPricing(); window.scrollTo(0, y); });
 }
 
 async function activateFromInput() {
@@ -605,6 +650,7 @@ function viewDemoCheckout(params) {
       <div class="banner warn"><b>Demo checkout.</b> Payments aren't connected yet, so this simulates a successful payment. Set up the payments worker (see README) to charge real cards.</div>
       <h2 style="margin:0">${esc(p.name)}</h2>
       <div class="price">${money(p)}<small> /month</small></div>
+      <p class="muted small" style="margin:0">${esc(COUNTRY_BY_CODE[region.country].name)} · ${region.currency} · via ${params.get('prov') === 'razorpay' ? 'Razorpay (UPI / cards)' : 'Stripe (cards)'}</p>
       <ul class="muted small">${p.highlights.map((h) => `<li>${esc(h)}</li>`).join('')}</ul>
       <button class="btn pass block" id="demo-pay">Simulate payment</button>
       <a class="btn ghost block" href="#/pricing">Cancel</a>

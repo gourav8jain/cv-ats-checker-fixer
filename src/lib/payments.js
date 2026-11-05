@@ -23,19 +23,21 @@ function loadScript(src) {
   });
 }
 
-export async function startCheckout(planId, provider = CONFIG.provider === 'both' ? 'stripe' : CONFIG.provider, email = '') {
+export async function startCheckout(planId, provider = CONFIG.provider === 'both' ? 'stripe' : CONFIG.provider, email = '', currency = 'INR', country = 'IN') {
   const plan = PLAN_BY_ID[planId];
   if (!plan || plan.usd === 0) throw new Error('Unknown plan');
   if (CONFIG.demoMode) {
-    location.hash = `#/checkout-demo?plan=${planId}`;
+    location.hash = `#/checkout-demo?plan=${planId}&prov=${provider}`;
     return;
   }
-  if (provider === 'razorpay') return razorpayCheckout(plan, email);
+  if (provider === 'razorpay') return razorpayCheckout(plan, email, currency, country);
   const native = isNative();
   const base = CONFIG.webUrl.replace(/\/?$/, '/');
   const { url } = await api('/checkout', {
     plan: planId,
     provider: 'stripe',
+    currency,
+    country,
     email: email || undefined,
     successUrl: `${base}?provider=stripe&session_id={CHECKOUT_SESSION_ID}${native ? '&native=1' : ''}#/success`,
     cancelUrl: `${base}#/pricing`,
@@ -44,8 +46,8 @@ export async function startCheckout(planId, provider = CONFIG.provider === 'both
   await openExternal(url);
 }
 
-async function razorpayCheckout(plan, email) {
-  const order = await api('/checkout', { plan: plan.id, provider: 'razorpay', email: email || undefined, platform: platform() });
+async function razorpayCheckout(plan, email, currency, country) {
+  const order = await api('/checkout', { plan: plan.id, provider: 'razorpay', currency, country, email: email || undefined, platform: platform() });
   await loadScript('https://checkout.razorpay.com/v1/checkout.js');
   return new Promise((resolve, reject) => {
     const rzp = new window.Razorpay({

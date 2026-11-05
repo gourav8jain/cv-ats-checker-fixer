@@ -45,6 +45,14 @@ test('stripe checkout → verify → refresh → portal-guard', async () => {
   assert.equal(c.cors, 'https://gourav8jain.github.io');
   const sent = new URLSearchParams(calls.at(-1).init.body);
   assert.equal(sent.get('line_items[0][price_data][unit_amount]'), '2900');
+  assert.equal(sent.get('line_items[0][price_data][currency]'), 'usd');
+  await call('POST', '/checkout', { plan: 'pro', provider: 'stripe', currency: 'INR', country: 'IN', successUrl: `${base}?session_id={CHECKOUT_SESSION_ID}#/success`, cancelUrl: `${base}#/pricing` });
+  const inr = new URLSearchParams(calls.at(-1).init.body);
+  assert.equal(inr.get('line_items[0][price_data][currency]'), 'inr');
+  assert.equal(inr.get('line_items[0][price_data][unit_amount]'), '239900');
+  await call('POST', '/checkout', { plan: 'starter', provider: 'stripe', country: 'JP', successUrl: `${base}x`, cancelUrl: `${base}x` });
+  assert.equal(new URLSearchParams(calls.at(-1).init.body).get('line_items[0][price_data][unit_amount]'), '1400');
+  assert.equal((await call('POST', '/checkout', { plan: 'pro', provider: 'stripe', currency: 'XYZ', successUrl: base, cancelUrl: base })).status, 400);
   assert.equal(sent.get('mode'), 'subscription');
 
   const bad = await call('POST', '/checkout', { plan: 'pro', provider: 'stripe', successUrl: 'https://evil.com/x', cancelUrl: `${base}` });
@@ -64,8 +72,10 @@ test('stripe checkout → verify → refresh → portal-guard', async () => {
 });
 
 test('razorpay order → verify signature', async () => {
-  const o = await call('POST', '/checkout', { plan: 'pro', provider: 'razorpay' });
+  const o = await call('POST', '/checkout', { plan: 'pro', provider: 'razorpay', country: 'IN' });
   assert.equal(o.data.orderId, 'order_1');
+  const body = JSON.parse(calls.at(-1).init.body);
+  assert.equal(body.amount, 239900); assert.equal(body.currency, 'INR');
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode('rzpsecret'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const sig = [...new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode('order_1|pay_1')))].map((b) => b.toString(16).padStart(2, '0')).join('');
   const v = await call('POST', '/verify/razorpay', { razorpay_order_id: 'order_1', razorpay_payment_id: 'pay_1', razorpay_signature: sig });

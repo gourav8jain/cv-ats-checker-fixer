@@ -32,7 +32,9 @@ Mobile-first web app + Android + iOS app that scores a resume against Applicant 
 | Premium Tailor | $59/mo | + job keyword tailoring, summary generator, AI rewrites |
 | Career Ultimate | $99/mo | + cover letter generator, LinkedIn headline & About, unlimited tailored versions |
 
-Edit prices or features in `shared/plans.js`. The app and the worker both read that file, so the price on screen always matches the charge. INR prices (`inr`) are used for Razorpay.
+Prices above are in USD. Users pick a **country and currency** (India / INR is the default) and see that region's prices: ₹749 / ₹2,399 / ₹4,899 / ₹8,199 in India, £8–£82 in the UK, €9–€92 in the eurozone, and so on for 17 currencies and 36 countries. Edit features in `shared/plans.js` and prices in `shared/pricing.js`. The app and the worker both read these files, and the worker looks up the price itself, so the amount on screen is always the amount charged.
+
+For INR, checkout opens Razorpay first (UPI, cards, net banking), with Stripe for international cards. Other currencies go through Stripe.
 
 ## How payment works
 

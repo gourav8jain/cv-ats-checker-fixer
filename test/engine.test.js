@@ -6,6 +6,7 @@ import { buildFixedResume, resumeToText, fixBullet, generateCoverLetter, generat
 import { extractJdKeywords, matchKeywords } from '../src/engine/keywords.js';
 import { SAMPLE_RESUME, SAMPLE_JD } from '../src/engine/sample.js';
 import { PLANS, planHas } from '../shared/plans.js';
+import { CURRENCIES, COUNTRIES, DEFAULT_COUNTRY, currencyForCountry, priceFor, formatPrice, planFromAmount } from '../shared/pricing.js';
 
 const ALL = ['format', 'contact', 'headings', 'dates', 'bullets', 'pronouns', 'cliches', 'tense', 'repetition', 'quantify', 'keywords', 'summary'];
 
@@ -74,4 +75,21 @@ test('handles a resume with no structure gracefully', () => {
   const a = analyze(parseText('hello world this is not a resume at all'), '');
   assert.ok(a.score < 40);
   assert.ok(a.issues.some((i) => i.id === 'no-exp'));
+});
+
+test('country pricing: India/INR default, every currency priced for every paid plan', () => {
+  assert.equal(DEFAULT_COUNTRY, 'IN');
+  assert.equal(currencyForCountry('IN'), 'INR');
+  assert.equal(currencyForCountry('GB'), 'GBP');
+  assert.equal(currencyForCountry('ZZ'), 'USD');
+  for (const c of COUNTRIES) assert.ok(CURRENCIES[c.currency], c.code);
+  for (const [cur, def] of Object.entries(CURRENCIES)) {
+    const vals = PLANS.filter((p) => p.usd).map((p) => priceFor(p.id, cur).amount);
+    assert.ok(vals.every((v, i) => i === 0 || v > vals[i - 1]), `${cur} prices ascend`);
+    assert.equal(planFromAmount(priceFor('premium', cur).minorUnits, cur.toLowerCase()), 'premium');
+    assert.ok(def.symbol);
+  }
+  assert.equal(formatPrice(2399, 'INR'), '₹2,399');
+  assert.equal(priceFor('ultimate', 'USD').amount, 99);
+  assert.equal(priceFor('starter', 'JPY').minorUnits, 1400);
 });

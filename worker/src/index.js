@@ -1,7 +1,8 @@
 // ResumeRx payments + AI worker (Cloudflare Workers, free tier is enough).
 // Stateless: no database. Payments are verified directly with Stripe / Razorpay and turned
 // into ES256-signed license tokens the app verifies offline with the public key.
-import { PLANS, PLAN_BY_ID, planHas } from '../../shared/plans.js';
+import { PLAN_BY_ID, planHas } from '../../shared/plans.js';
+import { priceFor, planFromAmount, currencyForCountry, CURRENCIES } from '../../shared/pricing.js';
 
 const DAY = 86400;
 const enc = new TextEncoder();
@@ -77,9 +78,8 @@ function periodEnd(sub) {
 }
 function planFromSubscription(sub) {
   if (sub.metadata?.plan && PLAN_BY_ID[sub.metadata.plan]) return sub.metadata.plan;
-  const cents = sub.items?.data?.[0]?.price?.unit_amount;
-  const p = PLANS.find((x) => x.usd * 100 === cents);
-  return p ? p.id : null;
+  const price = sub.items?.data?.[0]?.price;
+  return price ? planFromAmount(price.unit_amount, price.currency) : null;
 }
 
 function assertAllowedUrl(env, url) {
@@ -135,9 +135,13 @@ async function route(req, env, url) {
   if (p === '/checkout' && req.method === 'POST') {
     const plan = PLAN_BY_ID[body.plan];
     if (!plan || !plan.usd) throw new HttpError(400, 'Unknown plan');
+    // Price is always looked up server-side from the shared table; the client only says which currency.
+    const currency = String(body.currency || currencyForCountry(body.country) || 'USD').toUpperCase();
+    if (!CURRENCIES[currency]) throw new HttpError(400, 'Unsupported currency');
+    const price = priceFor(plan.id, currency);
     if (body.provider === 'razorpay') {
       if (!env.RAZORPAY_KEY_ID) throw new HttpError(501, 'Razorpay is not configured');
-      const order = await razorpay(env, 'POST', '/orders', { amount: plan.inr * 100, currency: 'INR', receipt: `rrx_${Date.now()}`, notes: { plan: plan.id, email: body.email || '' } });
+      const order = await razorpay(env, 'POST', '/orders', { amount: price.minorUnits, currency, receipt: `rrx_${Date.now()}`, notes: { plan: plan.id, email: body.email || '', country: body.country || '' } });
       return { orderId: order.id, amount: order.amount, currency: order.currency, keyId: env.RAZORPAY_KEY_ID };
     }
     if (!env.STRIPE_SECRET_KEY) throw new HttpError(501, 'Stripe is not configured');
@@ -150,8 +154,8 @@ async function route(req, env, url) {
       customer_email: body.email || undefined,
       allow_promotion_codes: 'true',
       billing_address_collection: 'auto',
-      line_items: { 0: { quantity: 1, price_data: { currency: 'usd', unit_amount: plan.usd * 100, recurring: { interval: 'month' }, product_data: { name: `ResumeRx ${plan.name}`, description: plan.tagline } } } },
-      metadata: { plan: plan.id, platform: body.platform || 'web' },
+      line_items: { 0: { quantity: 1, price_data: { currency: currency.toLowerCase(), unit_amount: price.minorUnits, recurring: { interval: 'month' }, product_data: { name: `ResumeRx ${plan.name}`, description: plan.tagline } } } },
+      metadata: { plan: plan.id, platform: body.platform || 'web', country: body.country || '', currency },
       subscription_data: { metadata: { plan: plan.id } },
     });
     return { url: session.url };
